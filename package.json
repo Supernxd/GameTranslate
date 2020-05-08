@@ -2,7 +2,7 @@
   "name": "gametranslate",
   "version": "1.0.0",
   "description": "游戏翻译",
-  "main": "index.js",
+  "main": "main.js",
   "directories": {
     "lib": "lib"
   },
