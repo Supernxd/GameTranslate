@@ -11,6 +11,8 @@ let windowConfig = {
   }
 };
 
+let isCapture = false
+
 function createWindow() {
   win = new BrowserWindow(windowConfig);
   
@@ -24,8 +26,10 @@ function createWindow() {
     // win.reload();
   })
   const ret = globalShortcut.register('CommandOrControl+Alt+A', () => {
+    if (isCapture) return
+    isCapture = true
     desktopCapture()
-  })
+  })  
 
   if (!ret) {
     console.log('registration failed')
@@ -34,10 +38,7 @@ function createWindow() {
   win.webContents.openDevTools()
 }
 function desktopCapture() {
-  let size = screen.getPrimaryDisplay().workAreaSize
   let newwin = new BrowserWindow({
-    // width: 600,
-    // height: 600,
     frame: false,
     titleBarStyle: 'hidden',
     transparent: true,
@@ -49,15 +50,18 @@ function desktopCapture() {
     webSecurity: false,
   }})
 
-  newwin.on('close', () => { newwin = null })
-  newwin.on('resize', updateReply)
-  newwin.on('move', updateReply)
+  globalShortcut.register('ESC', () => {
+    newwin.close()
+  })
+
+  newwin.on('close', () => { 
+    newwin = null; 
+    isCapture = false
+    globalShortcut.unregister('ESC')
+  })
   newwin.loadURL(`file://${__dirname}/test.html`)
   newwin.show()
-  newwin.webContents.openDevTools()
-  function updateReply () {
-    console.log(`大小: ${newwin.getSize()} 位置: ${newwin.getPosition()}`)
-  }
+  // newwin.webContents.openDevTools()
 }
 
 
