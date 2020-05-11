@@ -1,4 +1,7 @@
-const {app,BrowserWindow,screen,globalShortcut} = require('electron');
+const {app,BrowserWindow,ipcMain,globalShortcut,Tray,Menu} = require('electron');
+const path = require('path')
+const {translate} = require('./lib/translate')
+
 let win;
 let windowConfig = {
   width: 750,
@@ -35,7 +38,7 @@ function createWindow() {
     console.log('registration failed')
   }
   
-  win.webContents.openDevTools()
+  makeTray()
 }
 function desktopCapture() {
   let newwin = new BrowserWindow({
@@ -55,16 +58,44 @@ function desktopCapture() {
   })
 
   newwin.on('close', () => { 
+    console.log('close')
     newwin = null; 
     isCapture = false
     globalShortcut.unregister('ESC')
+    ipcMain.removeListener('closeCapturehtml')
+  })
+  ipcMain.once('closeCapturehtml', () => {
+    newwin.close()
   })
   newwin.loadURL(`file://${__dirname}/test.html`)
   newwin.show()
   // newwin.webContents.openDevTools()
 }
 
+ipcMain.on('translate', async (event, arg) => {
+  let msg = ''
+  try {
+    msg = await translate(arg)
+  } catch (error) {
+    msg = '失败'
+  }
+  event.sender.send('translate_reply', msg)
+})
 
+const makeTray = () => {
+  const iconPath = path.join(__dirname, 'windows-icon.png')
+  appIcon = new Tray(iconPath)
+
+  const contextMenu = Menu.buildFromTemplate([{
+    label: '移除',
+    click: () => {
+      event.sender.send('tray-removed')
+    }
+  }])
+
+  appIcon.setToolTip('在托盘中的 Electron 示例.')
+  appIcon.setContextMenu(contextMenu)
+}
 app.on('ready', createWindow);
 app.on('window-all-closed', () => {
   app.quit();

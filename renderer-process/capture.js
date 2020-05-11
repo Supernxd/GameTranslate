@@ -1,4 +1,4 @@
-const {desktopCapturer, webFrame, shell} = require('electron')
+const {desktopCapturer, webFrame, shell, ipcRenderer} = require('electron')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
@@ -7,11 +7,11 @@ let canSelect = false,
   isSelect = false,
   startPos, endPos, srcCtx
 webFrame.setZoomFactor(1.0);
+// let top, left, width, height
 
 const getDesktopPic = () => {
   console.log('正在截取屏幕...')
   console.log(desktopCapturer.getSources)
-  let options = { types: ['screen']}
   desktopCapturer.getSources({types: ['screen', 'window']}).then(sources => {
     // if (error) return console.log(error)
     console.log('getSources', sources)
@@ -26,13 +26,6 @@ const getDesktopPic = () => {
               },
           },
         }, handleStream, handleError)
-
-        // fs.writeFile(screenshotPath, source.thumbnail.toPNG(), (error) => {
-        //   if (error) return console.log(error)
-        //   shell.openExternal(`file://${screenshotPath}`)
-
-        //   console.log(`截图保存到: ${screenshotPath}`)
-        // })
       }
     })
   })
@@ -43,6 +36,16 @@ const getDesktopPic = () => {
 
 const handleError = (err) => {
   console.log(err)
+}
+
+const saveImg = (base64Data) => {
+  const screenshotPath = path.join(os.tmpdir(), 'screenshot.png')
+  fs.writeFile(screenshotPath, Buffer.from(base64Data, 'base64'), (error) => {
+    if (error) return console.log(error)
+    shell.openExternal(`file://${screenshotPath}`)
+
+    console.log(`截图保存到: ${screenshotPath}`)
+  })
 }
 
 const handleStream = (stream) => {
@@ -97,16 +100,32 @@ const handleStream = (stream) => {
   video.srcObject = stream
   document.body.appendChild(video)
 }     
-const selectImg = () => {
-  const width = (endPos.x - startPos.x)
-  const height = (endPos.y - startPos.y)
-  let canvas = document.getElementById('pic')
-  canvas.width = window.innerWidth
-  canvas.height = window.innerHeight
-  let ctx = canvas.getContext('2d')
-  ctx.clearRect(0,0,canvas.width,canvas.height);  
-  ctx.drawImage(srcCtx.canvas, startPos.x , startPos.y, width, height, startPos.x , startPos.y, width, height)
+const endSelect = () => {
+  const canvas = document.getElementById('pic')
+  ipcRenderer.send('translate', canvas.toDataURL("image/png").split(',')[1])
 }
+const selectImg = () => {
+  const width = Math.abs(endPos.x - startPos.x)
+  const height = Math.abs(endPos.y - startPos.y)
+  const left = endPos.x > startPos.x ? startPos.x : endPos.x
+  const top = endPos.y > startPos.y ? startPos.y : endPos.y
+  let canvas = document.getElementById('pic')
+  canvas.style.left = left + 'px'
+  canvas.style.top = top + 'px'
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')  
+  ctx.drawImage(srcCtx.canvas, left , top, width, height, 0 , 0, width, height)
+  ctx.rect(0, 0, width, height)
+  ctx.strokeStyle="blue";
+  ctx.stroke()
+}
+
+ipcRenderer.on('translate_reply', (event, arg) => {
+  alert(arg)
+  ipcRenderer.send('closeCapturehtml')
+})
+
 
 document.body.addEventListener('mousedown', (event) => {
   if (event.button == 0){
@@ -115,6 +134,9 @@ document.body.addEventListener('mousedown', (event) => {
       x: event.pageX,
       y: event.pageY
     }
+    const canvas = document.getElementById('pic')
+    const ctx = canvas.getContext('2d')
+    ctx.clearRect(0,0,canvas.width,canvas.height);  
   }
 })
 
@@ -124,20 +146,17 @@ document.body.addEventListener('mousemove', (event) => {
       x: event.pageX,
       y: event.pageY
     }
-    // selectImg()
+    selectImg()
   }
 })
 
+// TODO 实时显示相框
 document.body.addEventListener('mouseup', (event) => {
   if (event.button == 0) {
     isSelect = false
     if (canSelect) {
       // canSelect = false
-      endPos = {
-        x: event.pageX,
-        y: event.pageY
-      }
-      selectImg()
+      endSelect()
     }
   }
 })
